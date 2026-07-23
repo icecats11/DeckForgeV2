@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create:*)",
+      "Bash(1:*)",
+      "Bash(npx create-vite@latest . --template react --force)",
+      "Bash(npx create-vite@latest . --template react)",
+      "Bash(echo \"Exit: $?\")",
+      "Bash(printf '\\\\n')",
+      "Bash(npx --yes create-vite . --template react)",
+      "Bash(cd:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(node:*)",
+      "Bash(netstat -ano)",
+      "Bash(findstr :3001)",
+      "Bash(kill -9 9244)",
+      "Bash(cmd //c \"taskkill /PID 9244 /F\" 2>&1)",
+      "Bash(kill %1)",
+      "Bash(cmd //c \"netstat -ano | findstr \"\"5173 3001\"\"\")",
+      "Bash(cmd //c \"netstat -ano | findstr :3001\")",
+      "Bash(curl -s -X POST http://localhost:3001/api/generate -H \"Content-Type: application/json\" -d '{\"\"\"\"bracket\"\"\"\":\"\"\"\"1\"\"\"\"}')",
+      "Bash(curl:*)",
+      "Bash(pkill -f \"node server.js\")",
+      "Bash(pkill -f \"vite\")",
+      "Bash(taskkill /PID 2304 /F)",
+      "Bash(taskkill:*)",
+      "WebFetch(domain:moxfield.com)",
+      "WebSearch",
+      "WebFetch(domain:edhrec.com)",
+      "WebFetch(domain:draftsim.com)"
+    ]
+  }
+}
