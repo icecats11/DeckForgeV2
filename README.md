@@ -70,3 +70,9 @@ rows, caps feedback/share sizes, and schedules expiry of old share links
 - Combo detection is deterministic via Commander Spellbook's
   `find-my-combos` API (`api/combos.js`), separate from the AI's
   suggested lines.
+- **Collection mode** (`src/utils/collection.js` + `api/suggest.js`):
+  commander candidates are found and identity-scored deterministically in
+  the browser; only a compact summary (card names, no oracle text) goes to
+  Claude for concept suggestions. "Forge This Deck" reuses `/api/generate`
+  with a collection constraint, enforced server-side by the validator so
+  the deck can only contain cards the player owns (plus basics).

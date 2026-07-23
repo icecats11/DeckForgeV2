@@ -1,4 +1,4 @@
-const BASIC_LAND_NAMES = new Set([
+export const BASIC_LAND_NAMES = new Set([
   "Plains", "Island", "Swamp", "Mountain", "Forest",
   "Wastes", "Snow-Covered Plains", "Snow-Covered Island",
   "Snow-Covered Swamp", "Snow-Covered Mountain", "Snow-Covered Forest",
@@ -8,7 +8,7 @@ const BASIC_LAND_NAMES = new Set([
 const SKIP_SECTIONS = new Set(["sideboard", "maybeboard"]);
 const SECTION_HEADERS = new Set(["commander", "deck", "mainboard", "sideboard", "maybeboard"]);
 
-function cleanLine(line) {
+export function cleanLine(line) {
   // Strip comments
   line = line.replace(/#.*$/, "").trim();
   // Strip set codes and collector numbers: (SET) 123 or (SET)
@@ -22,7 +22,7 @@ function cleanLine(line) {
   return line;
 }
 
-function parseLine(line) {
+export function parseLine(line) {
   // Match: optional qty (number or numberx), then card name
   const match = line.match(/^(\d+)[xX]?\s+(.+)$/);
   if (!match) return null;

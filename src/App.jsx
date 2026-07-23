@@ -1,9 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 import DeckInput from "./components/DeckInput.jsx";
+import CollectionInput from "./components/CollectionInput.jsx";
+import CollectionSuggestions from "./components/CollectionSuggestions.jsx";
 import Results from "./components/Results.jsx";
 import DiagnosticLog from "./components/DiagnosticLog.jsx";
 import AuthModal from "./components/AuthModal.jsx";
 import { parseDeckList } from "./utils/parser.js";
+import { parseCollectionList, findCommanderCandidates } from "./utils/collection.js";
 import { fetchScryfallData } from "./utils/scryfall.js";
 import { supabase } from "./utils/supabase.js";
 import { priceGbp } from "./utils/price.js";
@@ -63,6 +66,7 @@ const STEP_LABELS = {
   parsing: "Reading the scroll…",
   fetching_scryfall: "Scouring the vaults…",
   analysing: "Consulting the Smith…",
+  suggesting: "Sifting through your collection…",
 };
 
 const PHASE_PROGRESS = {
@@ -70,6 +74,7 @@ const PHASE_PROGRESS = {
   parsing: 34,
   fetching_scryfall: 60,
   analysing: 84,
+  suggesting: 75,
 };
 
 export default function App() {
@@ -86,6 +91,10 @@ export default function App() {
   const [totalPriceGbp, setTotalPriceGbp] = useState(null);
   const [isGenerated, setIsGenerated] = useState(false);
   const [generateCommander, setGenerateCommander] = useState("");
+  const [suggestions, setSuggestions] = useState(null);
+  const [collectionNames, setCollectionNames] = useState([]);
+  const [collectionSf, setCollectionSf] = useState(null);
+  const [forging, setForging] = useState(false);
 
   // Auth state
   const [user, setUser] = useState(null);
@@ -342,6 +351,101 @@ export default function App() {
     }
   }
 
+  async function handleSuggestFromCollection(rawText) {
+    logRef.current = [];
+    setLogs([]);
+    setError(null);
+    setResults(null);
+    setSuggestions(null);
+
+    setPhase("parsing");
+    addLog("Parsing collection…");
+    const { cards, totalCards } = parseCollectionList(rawText);
+    addLog(`Parsed ${cards.length} distinct non-basic cards (${totalCards} total)`);
+    if (cards.length < 20) {
+      setError("Paste at least ~20 distinct cards so there's something to work with.");
+      setPhase("error");
+      return;
+    }
+
+    setPhase("fetching_scryfall");
+    addLog("Fetching Scryfall data…");
+    let sfMap;
+    try {
+      sfMap = await fetchScryfallData(cards.map((c) => c.name));
+      addLog(`Scryfall returned data for ${sfMap.size} cards`);
+    } catch (e) {
+      setError(`Scryfall fetch failed: ${e.message}`);
+      setPhase("error");
+      return;
+    }
+
+    // Deterministic: find and score commander candidates locally
+    const candidates = findCommanderCandidates(cards, sfMap);
+    addLog(`Found ${candidates.length} possible commander(s) in collection`);
+    if (!candidates.length) {
+      setError("No legal commanders found — the collection needs at least one legendary creature.");
+      setPhase("error");
+      return;
+    }
+    for (const c of candidates.slice(0, 5)) {
+      addLog(`Candidate: ${c.name} [${c.identity.join("") || "C"}] — ${c.supportCount} cards fit`);
+    }
+
+    setPhase("suggesting");
+    addLog("Asking the Smith for deck concepts…");
+    try {
+      const names = cards.map((c) => c.name);
+      const resp = await fetch("/api/suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          candidates: candidates.slice(0, 15),
+          collection: names.slice(0, 700),
+        }),
+      });
+      const json = await resp.json();
+      if (!resp.ok || json.error) throw new Error(json.error || `HTTP ${resp.status}`);
+      setSuggestions(json.suggestions);
+      setCollectionNames(names);
+      setCollectionSf(sfMap);
+      setPhase("suggested");
+      addLog(`Received ${json.suggestions.length} deck concept(s).`);
+    } catch (e) {
+      setError(e.message);
+      setPhase("error");
+    }
+  }
+
+  async function handleForgeFromCollection(concept) {
+    setForging(true);
+    try {
+      const resp = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bracket: ["1", "2", "3", "4", "5"].includes(String(concept.bracket)) ? String(concept.bracket) : "2",
+          commander: concept.commander,
+          collection: collectionNames.slice(0, 800),
+        }),
+      });
+      const json = await resp.json();
+      if (!resp.ok || json.error) throw new Error(json.error || `HTTP ${resp.status}`);
+      await handleAnalyse(json.decklist, { generated: true });
+      const v = json.validation;
+      if (v) {
+        for (const r of v.removed ?? []) addLog(`Validator removed ${r.card} (${r.reason})`);
+        if (v.addedBasics > 0) addLog(`Validator added ${v.addedBasics} basic land(s) to reach 99`);
+        if (v.trimmed > 0) addLog(`Validator trimmed ${v.trimmed} card(s) down to 99`);
+      }
+    } catch (e) {
+      setError(e.message);
+      setPhase("error");
+    } finally {
+      setForging(false);
+    }
+  }
+
   async function handleSignOut() {
     await supabase?.auth.signOut();
     setUser(null);
@@ -358,9 +462,11 @@ export default function App() {
     setParsedBasics("");
     setTotalPriceGbp(null);
     setIsGenerated(false);
+    setSuggestions(null);
+    setForging(false);
   }
 
-  const isLoading = ["generating", "parsing", "fetching_scryfall", "analysing"].includes(phase);
+  const isLoading = ["generating", "parsing", "fetching_scryfall", "analysing", "suggesting"].includes(phase);
 
   return (
     <div className="app-wrapper">
@@ -425,6 +531,8 @@ export default function App() {
               ))}
             </div>
           </div>
+
+          <CollectionInput onSuggest={handleSuggestFromCollection} disabled={false} />
 
           {!user && !authLoading && (
             <div className="saved-section" style={{ textAlign: "center", color: "var(--muted)", fontSize: "0.88rem", padding: "0.5rem 0" }}>
@@ -496,6 +604,17 @@ export default function App() {
           </div>
           <DiagnosticLog logs={logs} />
         </>
+      )}
+
+      {phase === "suggested" && suggestions && (
+        <CollectionSuggestions
+          suggestions={suggestions}
+          collectionSize={collectionNames.length}
+          scryfallData={collectionSf}
+          onForge={handleForgeFromCollection}
+          onBack={handleReset}
+          forging={forging}
+        />
       )}
 
       {phase === "done" && results && (

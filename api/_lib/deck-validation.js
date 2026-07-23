@@ -56,9 +56,13 @@ export function parseGeneratedDecklist(text) {
  * @param parsed        result of parseGeneratedDecklist()
  * @param commanderCard verified Scryfall card object for the commander
  * @param found         Map<lowercaseName, scryfallCard> of verified cards
+ * @param options       { allowedSet?: Set<lowercaseName> } — when present,
+ *                      cards outside the set are removed (collection mode).
+ *                      Basics are always allowed.
  * @returns { decklist, report }
  */
-export function repairDeck(parsed, commanderCard, found) {
+export function repairDeck(parsed, commanderCard, found, options = {}) {
+  const allowedSet = options.allowedSet ?? null;
   const report = { removed: [], addedBasics: 0, trimmed: 0, notes: [] };
   const { cards, basics } = parsed;
 
@@ -83,6 +87,12 @@ export function repairDeck(parsed, commanderCard, found) {
     }
     if (card.name.toLowerCase() === canonicalCommander.toLowerCase()) {
       report.removed.push({ card: card.name, reason: "duplicate of commander" });
+      continue;
+    }
+    if (allowedSet &&
+        !allowedSet.has(card.name.toLowerCase()) &&
+        !allowedSet.has(name.toLowerCase())) {
+      report.removed.push({ card: card.name, reason: "not in your collection" });
       continue;
     }
     if (qty > 1) report.notes.push(`Reduced ${card.name} from ${qty} to 1 (singleton rule).`);

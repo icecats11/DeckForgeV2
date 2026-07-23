@@ -22,6 +22,7 @@ const { default: generateHandler } = await import("./api/generate.js");
 const { default: feedbackHandler } = await import("./api/feedback.js");
 const { default: shareHandler }    = await import("./api/share.js");
 const { default: combosHandler }   = await import("./api/combos.js");
+const { default: suggestHandler }  = await import("./api/suggest.js");
 
 app.options("/api/analyse", (req, res) => res.status(204).end());
 app.post("/api/analyse", analyseHandler);
@@ -32,6 +33,10 @@ app.post("/api/generate", generateHandler);
 
 app.options("/api/feedback", (req, res) => res.status(204).end());
 app.post("/api/feedback", feedbackHandler);
+
+app.use("/api/suggest", limiter);
+app.options("/api/suggest", (req, res) => res.status(204).end());
+app.post("/api/suggest", suggestHandler);
 
 app.options("/api/combos", (req, res) => res.status(204).end());
 app.post("/api/combos", combosHandler);

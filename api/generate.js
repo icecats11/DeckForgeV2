@@ -22,7 +22,7 @@ const BRACKET_GUIDES = {
 // invalid, and top the deck back up to 99 with basics in the commander's
 // colours. The report is returned so the frontend can log what changed.
 
-async function validateAndRepair(decklist) {
+async function validateAndRepair(decklist, allowedNames = null) {
   const parsed = parseGeneratedDecklist(decklist);
   if (!parsed.commander) return { decklist, report: null };
 
@@ -36,7 +36,10 @@ async function validateAndRepair(decklist) {
   }
 
   const { found } = await fetchCollection(Array.from(parsed.cards.keys()));
-  return repairDeck(parsed, commanderCard, found);
+  const allowedSet = allowedNames
+    ? new Set(allowedNames.map((n) => n.toLowerCase()))
+    : null;
+  return repairDeck(parsed, commanderCard, found, { allowedSet });
 }
 
 // ─── Handler ─────────────────────────────────────────────────────────────────
@@ -46,12 +49,19 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   if (!checkRateLimit(req, res, { max: 4, name: "generate" })) return;
 
-  const { bracket, commander } = req.body || {};
+  const { bracket, commander, collection } = req.body || {};
   if (!["1", "2", "3", "4", "5"].includes(String(bracket))) {
     return res.status(400).json({ error: "bracket must be 1–5" });
   }
   if (commander != null && (typeof commander !== "string" || commander.length > 120)) {
     return res.status(400).json({ error: "Invalid commander name." });
+  }
+  let allowedNames = null;
+  if (collection != null) {
+    if (!Array.isArray(collection) || collection.length < 20 || collection.length > 800) {
+      return res.status(400).json({ error: "collection must be an array of 20-800 card names." });
+    }
+    allowedNames = collection.map((n) => String(n).slice(0, 200));
   }
 
   const guide = BRACKET_GUIDES[String(bracket)];
@@ -81,9 +91,17 @@ ${card.oracle_text ?? card.card_faces?.map((f) => f.oracle_text).join("\n") ?? "
 Build the 99 around this commander's strategy.`;
   }
 
+  const collectionBlock = allowedNames
+    ? `
+
+COLLECTION CONSTRAINT — CRITICAL:
+The player owns ONLY the following cards. Every non-basic-land card in the deck MUST come from this list (basic lands are always available in any quantity). Do not include any card not on this list. If the collection can't fill all 99 slots within the colour identity, use more basic lands rather than inventing cards.
+Owned cards: ${allowedNames.join(", ")}`
+    : "";
+
   const prompt = `You are an expert Magic: The Gathering Commander deck builder. Generate a complete, real, playable 100-card Commander deck targeting bracket ${bracket} (${guide}).
 
-${commanderBlock}
+${commanderBlock}${collectionBlock}
 
 DECK CONSTRUCTION GUIDELINES (follow these ratios for a well-balanced deck):
 - Lands: 36-38 (increase toward 38 if the commander costs 5+ mana; decrease toward 36 for low-curve or aggressive strategies)
@@ -122,7 +140,7 @@ Deck
     if (!rawDecklist) return res.status(502).json({ error: "No decklist returned." });
 
     // Verify every card against Scryfall and repair the list
-    const { decklist, report } = await validateAndRepair(rawDecklist);
+    const { decklist, report } = await validateAndRepair(rawDecklist, allowedNames);
 
     return res.status(200).json({ decklist, validation: report });
   } catch (err) {

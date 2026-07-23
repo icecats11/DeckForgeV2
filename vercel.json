@@ -18,6 +18,9 @@
     },
     "api/generate.js": {
       "maxDuration": 60
+    },
+    "api/suggest.js": {
+      "maxDuration": 60
     }
   }
 }
