@@ -12,6 +12,41 @@ function ManaSymbol({ colour }) {
   );
 }
 
+function CommanderName({ name, scryfallData }) {
+  const imgRef = useRef(null);
+  const info = scryfallData?.get(name.toLowerCase());
+  const imgUrl = info?.image_uri ?? null;
+
+  function handleMouseMove(e) {
+    if (!imgRef.current) return;
+    imgRef.current.style.display = "block";
+    imgRef.current.style.left = `${e.clientX + 16}px`;
+    imgRef.current.style.top = `${Math.max(10, e.clientY - 100)}px`;
+  }
+  function handleMouseLeave() {
+    if (imgRef.current) imgRef.current.style.display = "none";
+  }
+
+  return (
+    <span
+      style={{ fontFamily: "Cinzel, serif", fontSize: "1.15rem", color: "var(--gold)", cursor: "default" }}
+      onMouseMove={imgUrl ? handleMouseMove : undefined}
+      onMouseLeave={imgUrl ? handleMouseLeave : undefined}
+    >
+      {name}
+      {imgUrl && (
+        <img
+          ref={imgRef}
+          src={imgUrl}
+          alt={name}
+          className="card-preview-img"
+          style={{ display: "none", position: "fixed", width: 220, borderRadius: 10, zIndex: 50 }}
+        />
+      )}
+    </span>
+  );
+}
+
 function CardChip({ name, scryfallData, muted }) {
   const imgRef = useRef(null);
   const info = scryfallData?.get(name.toLowerCase());
@@ -69,12 +104,25 @@ export default function CollectionSuggestions({ suggestions, collectionSize, scr
           .filter((c) => IDENTITY_SORT.includes(c))
           .sort((a, b) => IDENTITY_SORT.indexOf(a) - IDENTITY_SORT.indexOf(b));
         const isForging = forging && chosen === i;
+        const info = scryfallData?.get(String(s.commander ?? "").toLowerCase());
+        const artUrl = info?.art_crop_uri ?? info?.image_uri ?? null;
         return (
-          <div className="panel" key={i} style={{ marginBottom: "1.25rem" }}>
+          <div
+            className="panel"
+            key={i}
+            style={{
+              marginBottom: "1.25rem",
+              ...(artUrl
+                ? {
+                    backgroundImage: `linear-gradient(to right, rgba(7,7,26,0.96) 45%, rgba(7,7,26,0.78) 72%, rgba(7,7,26,0.55) 100%), url(${artUrl})`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center 25%",
+                  }
+                : {}),
+            }}
+          >
             <div style={{ display: "flex", alignItems: "baseline", gap: "0.6rem", flexWrap: "wrap" }}>
-              <span style={{ fontFamily: "Cinzel, serif", fontSize: "1.05rem", color: "var(--gold)" }}>
-                {s.commander}
-              </span>
+              <CommanderName name={s.commander} scryfallData={scryfallData} />
               {identity.map((c) => <ManaSymbol key={c} colour={c} />)}
               <span className="tag tag-gold">{s.archetype}</span>
               {s.bracket && <span className="tag tag-purple">Bracket {s.bracket}</span>}
